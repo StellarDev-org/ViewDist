@@ -1,0 +1,18 @@
+{
+    "command.no_permission": "Sem permissão",
+    "command.missing_parameters": "Falta parâmetros",
+    "command.reread_configuration_successfully": "Configuração re-lida!",
+    "command.reread_configuration_error": "Erro ao reler configuração",
+    "command.unknown_parameter_type": "Parâmetro desconhecido",
+    "command.report.source": "ORIGEM",
+    "command.report.fast": "RÁPIDO",
+    "command.report.slow": "LENTO",
+    "command.report.flow": "FLUÍDO",
+    "command.report.5s": "5S",
+    "command.report.1m": "1M",
+    "command.report.5m": "5M",
+    "command.continue_execution": "Continuar execução",
+    "command.suspension_execution": "Suspender execução",
+    "command.players_do_not_exist": "Jogador inexistente",
+    "command.rechecked_player_permissions": "Permissões re-verificadas"
+}

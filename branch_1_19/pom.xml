@@ -1,15 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>FartherViewDistance</groupId>
     <artifactId>branch_1_19</artifactId>
     <version>r1</version>
 
+    <pluginRepositories>
+        <pluginRepository>
+            <id>bytecode.space</id>
+            <url>https://repo.bytecode.space/repository/maven-public/</url>
+        </pluginRepository>
+    </pluginRepositories>
     <properties>
-        <java.version>1.8</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -21,12 +29,24 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.8.1</version>
                 <configuration>
-                    <source>9</source>
-                    <target>9</target>
+                    <source>17</source>
+                    <target>17</target>
                 </configuration>
             </plugin>
-
             <plugin>
+                <groupId>ca.bkaw</groupId>
+                <artifactId>paper-nms-maven-plugin</artifactId>
+                <version>1.3.2</version>
+                <executions>
+                    <execution>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>remap</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- <plugin>
                 <groupId>net.md-5</groupId>
                 <artifactId>specialsource-maven-plugin</artifactId>
                 <version>1.2.4</version>
@@ -52,13 +72,13 @@
                         </goals>
                         <id>remap-spigot</id>
                         <configuration>
-                            <inputFile>${project.build.directory}/${project.artifactId}-${project.version}-remapped-obf.jar</inputFile>
+            <inputFile>${project.build.directory}/${project.artifactId}-${project.version}-remapped-obf.jar</inputFile>
                             <srgIn>remapped:1.19.4:R0.1:csrg:maps-spigot</srgIn>
                             <remappedDependencies>remapped:1.19.4:R0.1:jar:remapped-obf</remappedDependencies>
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin> -->
         </plugins>
         <resources>
             <resource>
@@ -70,44 +90,62 @@
 
 
     <repositories>
-        <repository>
+        <!-- <repository>
             <id>minecraft_environment</id>
             <url>https://xuancat.app:8443/repository/minecraft_environment/</url>
+        </repository> -->
+        <repository>
+            <id>papermc</id>
+            <url>https://repo.papermc.io/repository/maven-public/</url>
+        </repository>
+        <repository>
+            <id>spigotmc-repo</id>
+            <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+        </repository>
+        <repository>
+            <id>sonatype</id>
+            <url>https://oss.sonatype.org/content/groups/public/</url>
         </repository>
     </repositories>
 
 
     <dependencies>
         <dependency>
-            <groupId>md-5</groupId>
+            <groupId>ca.bkaw</groupId>
+            <artifactId>paper-nms</artifactId>
+            <version>1.19.4-SNAPSHOT</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.md-5</groupId>
             <artifactId>bungeecord-chat</artifactId>
             <version>1.16-R0.4</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>mojang</groupId>
+            <groupId>com.mojang</groupId>
             <artifactId>datafixerupper</artifactId>
             <version>4.0.26</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>mojang</groupId>
+            <groupId>com.mojang</groupId>
             <artifactId>brigadier</artifactId>
             <version>1.0.18</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>mojang</groupId>
+            <groupId>com.mojang</groupId>
             <artifactId>javabridge</artifactId>
             <version>1.2.24</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
-            <groupId>mojang</groupId>
+            <groupId>com.mojang</groupId>
             <artifactId>authlib</artifactId>
             <version>3.2.38</version>
             <scope>provided</scope>
@@ -149,7 +187,7 @@
         </dependency>
 
         <!-- 1.19.4 -->
-        <dependency>
+        <!-- <dependency>
             <groupId>paper</groupId>
             <artifactId>1.19.4</artifactId>
             <version>501</version>
@@ -166,19 +204,19 @@
             <artifactId>1.19.4</artifactId>
             <version>501</version>
             <classifier>mojangapi</classifier>
-        </dependency>
+        </dependency> -->
         <!-- 1.19 spigot -->
-<!--        <dependency>-->
-<!--            <groupId>spigot</groupId>-->
-<!--            <artifactId>1.19</artifactId>-->
-<!--            <version>1</version>-->
-<!--            <classifier>mapped</classifier>-->
-<!--        </dependency>-->
-<!--        <dependency>-->
-<!--            <groupId>spigot</groupId>-->
-<!--            <artifactId>1.19</artifactId>-->
-<!--            <version>1</version>-->
-<!--            <classifier>api</classifier>-->
-<!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>spigot</groupId>-->
+        <!--            <artifactId>1.19</artifactId>-->
+        <!--            <version>1</version>-->
+        <!--            <classifier>mapped</classifier>-->
+        <!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>spigot</groupId>-->
+        <!--            <artifactId>1.19</artifactId>-->
+        <!--            <version>1</version>-->
+        <!--            <classifier>api</classifier>-->
+        <!--        </dependency>-->
     </dependencies>
 </project>
