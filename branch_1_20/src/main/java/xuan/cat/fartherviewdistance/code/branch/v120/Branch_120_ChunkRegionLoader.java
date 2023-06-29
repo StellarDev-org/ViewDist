@@ -45,7 +45,7 @@ import xuan.cat.fartherviewdistance.api.branch.BranchChunkLight;
  * @see ChunkSerializer
  * 參考 XuanCatAPI.CodeExtendChunkLight
  */
-@SuppressWarnings({ "deprecation", "unchecked" })
+@SuppressWarnings({ "unchecked" })
 public final class Branch_120_ChunkRegionLoader {
 
   private static final int CURRENT_DATA_VERSION = SharedConstants
@@ -180,7 +180,12 @@ public final class Branch_120_ChunkRegionLoader {
             new PalettedContainer<>(
               Block.BLOCK_STATE_REGISTRY,
               Blocks.AIR.defaultBlockState(),
-              PalettedContainer.Strategy.SECTION_STATES
+              PalettedContainer.Strategy.SECTION_STATES,
+              world.chunkPacketBlockController.getPresetBlockStates(
+                world,
+                chunkPos,
+                locationY
+              )
             );
         }
 
@@ -208,7 +213,8 @@ public final class Branch_120_ChunkRegionLoader {
               new PalettedContainer<>(
                 biomeRegistry.asHolderIdMap(),
                 biomeRegistry.getHolderOrThrow(Biomes.PLAINS),
-                PalettedContainer.Strategy.SECTION_BIOMES
+                PalettedContainer.Strategy.SECTION_BIOMES,
+                null
               );
           }
         }
