@@ -14,4 +14,3 @@
 3. run `pack.bat` (needs 7zip installed)
 4. \<Optional> Rename pack.jar -> FartherViewDistance.jar
 
-### If you wish only to download, download `pack.jar`, it only supports these versions tho 1.19 ~ 1.20.1
