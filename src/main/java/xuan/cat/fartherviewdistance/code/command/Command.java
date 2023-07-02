@@ -1,7 +1,8 @@
 package xuan.cat.fartherviewdistance.code.command;
 
-import net.md_5.bungee.api.ChatColor;
+import java.util.function.Consumer;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
@@ -27,247 +28,229 @@ public final class Command implements CommandExecutor {
     String[] parameters
   ) {
     if (!sender.hasPermission("command.viewdistance")) {
-      // 沒有權限
       sender.sendMessage(
-        ChatColor.RED + chunkServer.lang.get(sender, "command.no_permission")
+        ChatColor.RED +
+        this.chunkServer.lang.get(sender, "command.no_permission")
+      );
+    } else if (parameters.length < 1) {
+      sender.sendMessage(
+        ChatColor.RED +
+        this.chunkServer.lang.get(sender, "command.missing_parameters")
       );
     } else {
-      if (parameters.length < 1) {
-        // 缺少參數
-        sender.sendMessage(
-          ChatColor.RED +
-          chunkServer.lang.get(sender, "command.missing_parameters")
-        );
-      } else {
-        switch (parameters[0]) {
-          case "reload":
-            try {
-              configData.reload();
-              ChunkIndex.getChunkServer().reloadMultithreaded();
-              sender.sendMessage(
-                ChatColor.YELLOW +
-                chunkServer.lang.get(
+      String var5 = parameters[0];
+      switch (var5) {
+        case "reload":
+          try {
+            this.configData.reload();
+            ChunkIndex.getChunkServer().reloadMultithreaded();
+            sender.sendMessage(
+              ChatColor.YELLOW +
+              this.chunkServer.lang.get(
                   sender,
                   "command.reread_configuration_successfully"
                 )
-              );
-            } catch (Exception ex) {
-              ex.printStackTrace();
-              sender.sendMessage(
-                ChatColor.RED +
-                chunkServer.lang.get(
+            );
+          } catch (Exception var10) {
+            var10.printStackTrace();
+            sender.sendMessage(
+              ChatColor.RED +
+              this.chunkServer.lang.get(
                   sender,
                   "command.reread_configuration_error"
                 )
-              );
-            }
-            break;
-          case "report":
-            // 生成報告
-            if (parameters.length < 2) {
-              // 缺少參數
-              sender.sendMessage(
-                ChatColor.RED +
-                chunkServer.lang.get(sender, "command.missing_parameters")
-              );
-            } else {
-              switch (parameters[1]) {
-                case "server":
-                  {
-                    sendReportHead(sender);
-                    sendReportCumulative(
-                      sender,
-                      "*SERVER",
-                      chunkServer.serverCumulativeReport
-                    );
-                    break;
-                  }
-                case "thread":
-                  {
-                    sendReportHead(sender);
-                    chunkServer.threadsCumulativeReport.forEach(
-                      (
-                        (threadNumber, cumulativeReport) ->
-                          sendReportCumulative(
-                            sender,
-                            "*THREAD#" + threadNumber,
-                            cumulativeReport
-                          )
+            );
+          }
+          break;
+        case "report":
+          if (parameters.length < 2) {
+            sender.sendMessage(
+              ChatColor.RED +
+              this.chunkServer.lang.get(sender, "command.missing_parameters")
+            );
+          } else {
+            String var12 = parameters[1];
+            switch (var12) {
+              case "server":
+                this.sendReportHead(sender);
+                this.sendReportCumulative(
+                    sender,
+                    "*SERVER",
+                    this.chunkServer.serverCumulativeReport
+                  );
+                return true;
+              case "thread":
+                this.sendReportHead(sender);
+                this.chunkServer.threadsCumulativeReport.forEach(
+                      (threadNumber, cumulativeReport) ->
+                    this.sendReportCumulative(
+                        sender,
+                        "*THREAD#" + threadNumber,
+                        cumulativeReport
                       )
-                    );
-                    break;
-                  }
-                case "world":
-                  {
-                    sendReportHead(sender);
-                    chunkServer.worldsCumulativeReport.forEach(
-                      (
-                        (world, cumulativeReport) ->
-                          sendReportCumulative(
-                            sender,
-                            world.getName(),
-                            cumulativeReport
-                          )
+                  );
+                return true;
+              case "world":
+                this.sendReportHead(sender);
+                this.chunkServer.worldsCumulativeReport.forEach(
+                      (world, cumulativeReport) ->
+                    this.sendReportCumulative(
+                        sender,
+                        world.getName(),
+                        cumulativeReport
                       )
-                    );
-                    break;
-                  }
-                case "player":
-                  {
-                    sendReportHead(sender);
-                    chunkServer.playersViewMap.forEach(
-                      (
-                        (player, view) ->
-                          sendReportCumulative(
-                            sender,
-                            player.getName(),
-                            view.cumulativeReport
-                          )
+                  );
+                return true;
+              case "player":
+                this.sendReportHead(sender);
+                this.chunkServer.playersViewMap.forEach((playerx, view) ->
+                    this.sendReportCumulative(
+                        sender,
+                        playerx.getName(),
+                        view.cumulativeReport
                       )
-                    );
-                    break;
-                  }
-                default:
-                  // 未知的參數類型
-                  sender.sendMessage(
-                    ChatColor.RED +
-                    chunkServer.lang.get(
+                  );
+                return true;
+              default:
+                sender.sendMessage(
+                  ChatColor.RED +
+                  this.chunkServer.lang.get(
                       sender,
                       "command.unknown_parameter_type"
                     ) +
-                    " " +
-                    parameters[0]
-                  );
-                  break;
-              }
+                  " " +
+                  parameters[0]
+                );
             }
-            break;
-          case "start":
-            chunkServer.globalPause = false;
+          }
+          break;
+        case "start":
+          this.chunkServer.globalPause = false;
+          sender.sendMessage(
+            ChatColor.YELLOW +
+            this.chunkServer.lang.get(sender, "command.continue_execution")
+          );
+          break;
+        case "stop":
+          this.chunkServer.globalPause = true;
+          sender.sendMessage(
+            ChatColor.YELLOW +
+            this.chunkServer.lang.get(sender, "command.suspension_execution")
+          );
+          break;
+        case "permissionCheck":
+          if (parameters.length < 2) {
             sender.sendMessage(
-              ChatColor.YELLOW +
-              chunkServer.lang.get(sender, "command.continue_execution")
+              ChatColor.RED +
+              this.chunkServer.lang.get(sender, "command.missing_parameters")
             );
-            break;
-          case "stop":
-            chunkServer.globalPause = true;
-            sender.sendMessage(
-              ChatColor.YELLOW +
-              chunkServer.lang.get(sender, "command.suspension_execution")
-            );
-            break;
-          case "permissionCheck":
-            // 檢查玩家權限
-            if (parameters.length < 2) {
-              // 缺少參數
+          } else {
+            Player player = Bukkit.getPlayer(parameters[1]);
+            if (player == null) {
               sender.sendMessage(
                 ChatColor.RED +
-                chunkServer.lang.get(sender, "command.missing_parameters")
+                this.chunkServer.lang.get(
+                    sender,
+                    "command.players_do_not_exist"
+                  )
               );
             } else {
-              Player player = Bukkit.getPlayer(parameters[1]);
-              if (player == null) {
-                // 玩家不存在
-                sender.sendMessage(
-                  ChatColor.RED +
-                  chunkServer.lang.get(sender, "command.players_do_not_exist")
-                );
-              } else {
-                chunkServer.getView(player).permissionsNeed = true;
-                // 已重新檢查玩家權限
-                sender.sendMessage(
-                  ChatColor.YELLOW +
-                  chunkServer.lang.get(
+              this.chunkServer.getView(player).permissionsNeed = true;
+              sender.sendMessage(
+                ChatColor.YELLOW +
+                this.chunkServer.lang.get(
                     sender,
                     "command.rechecked_player_permissions"
                   )
-                );
-              }
-            }
-            break;
-          case "debug":
-            // 除錯
-            if (parameters.length < 2) {
-              // 缺少參數
-              sender.sendMessage(
-                ChatColor.RED +
-                chunkServer.lang.get(sender, "command.missing_parameters")
               );
-            } else {
-              switch (parameters[1]) {
-                case "view":
-                  {
-                    if (parameters.length < 3) {
-                      // 缺少參數
-                      sender.sendMessage(
-                        ChatColor.RED +
-                        chunkServer.lang.get(
-                          sender,
-                          "command.missing_parameters"
-                        )
-                      );
-                    } else {
-                      Player player = Bukkit.getPlayer(parameters[2]);
-                      if (player == null) {
-                        // 玩家不存在
-                        sender.sendMessage(
-                          ChatColor.RED +
-                          chunkServer.lang.get(
-                            sender,
-                            "command.players_do_not_exist"
-                          )
-                        );
-                      } else {
-                        chunkServer.getView(player).getMap().debug(sender);
-                      }
-                    }
-                    break;
-                  }
-              }
             }
-            break;
-          default:
-            // 未知的參數類型
+          }
+          break;
+        case "debug":
+          if (parameters.length < 2) {
             sender.sendMessage(
               ChatColor.RED +
-              chunkServer.lang.get(sender, "command.unknown_parameter_type") +
-              " " +
-              parameters[0]
+              this.chunkServer.lang.get(sender, "command.missing_parameters")
             );
-            break;
-        }
+          } else {
+            String player = parameters[1];
+            byte var8 = -1;
+            switch (player.hashCode()) {
+              case 3619493:
+                if (player.equals("view")) {
+                  var8 = 0;
+                }
+              default:
+                switch (var8) {
+                  case 0:
+                    if (parameters.length < 3) {
+                      sender.sendMessage(
+                        ChatColor.RED +
+                        this.chunkServer.lang.get(
+                            sender,
+                            "command.missing_parameters"
+                          )
+                      );
+                    } else {
+                      Player target = Bukkit.getPlayer(parameters[2]);
+                      if (target == null) {
+                        sender.sendMessage(
+                          ChatColor.RED +
+                          this.chunkServer.lang.get(
+                              sender,
+                              "command.players_do_not_exist"
+                            )
+                        );
+                      } else {
+                        this.chunkServer.getView(target).getMap().debug(sender);
+                      }
+                    }
+                }
+            }
+          }
+          break;
+        default:
+          sender.sendMessage(
+            ChatColor.RED +
+            this.chunkServer.lang.get(
+                sender,
+                "command.unknown_parameter_type"
+              ) +
+            " " +
+            parameters[0]
+          );
       }
     }
+
     return true;
   }
 
   private void sendReportHead(CommandSender sender) {
-    // 來源 | 快速 5秒/1分鐘/5分鐘 | 慢速 5秒/1分鐘/5分鐘 | 流量 5秒/1分鐘/5分鐘
     String timeSegment =
-      chunkServer.lang.get(sender, "command.report.5s") +
+      this.chunkServer.lang.get(sender, "command.report.5s") +
       "/" +
-      chunkServer.lang.get(sender, "command.report.1m") +
+      this.chunkServer.lang.get(sender, "command.report.1m") +
       "/" +
-      chunkServer.lang.get(sender, "command.report.5m");
+      this.chunkServer.lang.get(sender, "command.report.5m");
     sender.sendMessage(
       ChatColor.YELLOW +
-      chunkServer.lang.get(sender, "command.report.source") +
+      this.chunkServer.lang.get(sender, "command.report.source") +
       ChatColor.WHITE +
       " | " +
       ChatColor.GREEN +
-      chunkServer.lang.get(sender, "command.report.fast") +
+      this.chunkServer.lang.get(sender, "command.report.fast") +
       " " +
       timeSegment +
       ChatColor.WHITE +
       " | " +
       ChatColor.RED +
-      chunkServer.lang.get(sender, "command.report.slow") +
+      this.chunkServer.lang.get(sender, "command.report.slow") +
       " " +
       timeSegment +
       ChatColor.WHITE +
       " | " +
       ChatColor.GOLD +
-      chunkServer.lang.get(sender, "command.report.flow") +
+      this.chunkServer.lang.get(sender, "command.report.flow") +
       " " +
       timeSegment
     );

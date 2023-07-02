@@ -2,7 +2,9 @@ package xuan.cat.fartherviewdistance.code;
 
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -37,115 +39,128 @@ public final class ChunkIndex extends JavaPlugin {
   private static BranchMinecraft branchMinecraft;
 
   public void onEnable() {
-    plugin = this;
     //        protocolManager = ProtocolLibrary.getProtocolManager();
 
-    saveDefaultConfig();
+    ((ChunkIndex) (ChunkIndex.plugin = (Plugin) this)).saveDefaultConfig();
     configData = new ConfigData(this, getConfig());
 
     // 檢測版本
-    String bukkitVersion = Bukkit.getBukkitVersion();
-    if (bukkitVersion.matches("^1\\.14[^0-9].*$")) {
+    String bukkitVersionOld = Bukkit.getBukkitVersion();
+    String bukkitVersion = Bukkit
+      .getServer()
+      .getClass()
+      .getPackage()
+      .getName()
+      .replace("org.bukkit.craftbukkit", "")
+      .replace(".", "");
+    if (bukkitVersionOld.matches("^1\\.14[^0-9].*$")) {
       // 1.14
       branchPacket = new Branch_14_Packet();
       branchMinecraft = new Branch_14_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.SQUARE,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.15\\D.*$")) {
+    } else if (bukkitVersionOld.matches("^1\\.15\\D.*$")) {
       // 1.15
       branchPacket = new Branch_15_Packet();
       branchMinecraft = new Branch_15_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.SQUARE,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.16\\D.*$")) {
+    } else if (bukkitVersionOld.matches("^1\\.16\\D.*$")) {
       // 1.16
       branchPacket = new Branch_16_Packet();
       branchMinecraft = new Branch_16_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.SQUARE,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.17\\D.*$")) {
+    } else if (bukkitVersionOld.matches("^1\\.17\\D.*$")) {
       // 1.17
       branchPacket = new Branch_17_Packet();
       branchMinecraft = new Branch_17_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.SQUARE,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.18\\D.*$")) {
+    } else if (bukkitVersion.equals("v1_18_R1")) {
       // 1.18
       branchPacket = new Branch_18_Packet();
       branchMinecraft = new Branch_18_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.ROUND,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.19\\D.*$")) {
+    } else if (bukkitVersionOld.matches("^1\\.19\\D.*$")) {
       // 1.19
       branchPacket = new Branch_19_Packet();
       branchMinecraft = new Branch_19_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.ROUND,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
-    } else if (bukkitVersion.matches("^1\\.20\\D.*$")) {
+    } else if (bukkitVersion.equals("v1_20_R1")) {
       // 1.20
       branchPacket = new Branch_120_Packet();
       branchMinecraft = new Branch_120_Minecraft();
       chunkServer =
         new ChunkServer(
-          configData,
-          this,
+          ChunkIndex.configData,
+          (Plugin) this,
           ViewShape.ROUND,
-          branchMinecraft,
-          branchPacket
+          ChunkIndex.branchMinecraft,
+          ChunkIndex.branchPacket
         );
     } else {
+      this.getServer().getPluginManager().disablePlugin((Plugin) this);
       throw new IllegalArgumentException(
         "Unsupported MC version: " + bukkitVersion
       );
     }
 
     // 初始化一些資料
-    for (Player player : Bukkit.getOnlinePlayers()) chunkServer.initView(
-      player
-    );
-    for (World world : Bukkit.getWorlds()) chunkServer.initWorld(world);
+    for (final Player player : Bukkit.getOnlinePlayers()) {
+      ChunkIndex.chunkServer.initView(player);
+    }
+    for (final World world : Bukkit.getWorlds()) {
+      ChunkIndex.chunkServer.initWorld(world);
+    }
 
     Bukkit
       .getPluginManager()
       .registerEvents(
-        new ChunkEvent(chunkServer, branchPacket, branchMinecraft),
-        this
+        new ChunkEvent(
+          ChunkIndex.chunkServer,
+          ChunkIndex.branchPacket,
+          ChunkIndex.branchMinecraft
+        ),
+        (Plugin) this
       );
     //        protocolManager.addPacketListener(new ChunkPacketEvent(plugin, chunkServer));
 
@@ -154,10 +169,20 @@ public final class ChunkIndex extends JavaPlugin {
     }
 
     // 指令
-    PluginCommand command = getCommand("viewdistance");
+    final PluginCommand command = getCommand("viewdistance");
     if (command != null) {
-      command.setExecutor(new Command(chunkServer, configData));
-      command.setTabCompleter(new CommandSuggest(chunkServer, configData));
+      command.setExecutor(
+        (CommandExecutor) new Command(
+          ChunkIndex.chunkServer,
+          ChunkIndex.configData
+        )
+      );
+      command.setTabCompleter(
+        (TabCompleter) new CommandSuggest(
+          ChunkIndex.chunkServer,
+          ChunkIndex.configData
+        )
+      );
     }
   }
 
@@ -166,15 +191,19 @@ public final class ChunkIndex extends JavaPlugin {
     if (chunkServer != null) chunkServer.close();
   }
 
+  public ChunkIndex() {
+    super();
+  }
+
   public static ChunkServer getChunkServer() {
-    return chunkServer;
+    return ChunkIndex.chunkServer;
   }
 
   public static ConfigData getConfigData() {
-    return configData;
+    return ChunkIndex.configData;
   }
 
   public static Plugin getPlugin() {
-    return plugin;
+    return ChunkIndex.plugin;
   }
 }

@@ -39,8 +39,8 @@ public final class Branch_120_Chunk implements BranchChunk {
   public BranchNBT toNBT(BranchChunkLight light, List<Runnable> asyncRunnable) {
     return new Branch_120_NBT(
       Branch_120_ChunkRegionLoader.saveChunk(
-        worldServer,
-        levelChunk,
+        this.worldServer,
+        this.levelChunk,
         (Branch_120_ChunkLight) light,
         asyncRunnable
       )
@@ -255,31 +255,32 @@ public final class Branch_120_Chunk implements BranchChunk {
     return levelChunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x, z);
   }
 
-  public static Status ofStatus(ChunkStatus chunkStatus) {
+  public static BranchChunk.Status ofStatus(ChunkStatus chunkStatus) {
     if (chunkStatus == ChunkStatus.EMPTY) {
-      return Status.EMPTY;
+      return BranchChunk.Status.EMPTY;
     } else if (chunkStatus == ChunkStatus.STRUCTURE_STARTS) {
-      return Status.STRUCTURE_STARTS;
+      return BranchChunk.Status.STRUCTURE_STARTS;
     } else if (chunkStatus == ChunkStatus.STRUCTURE_REFERENCES) {
-      return Status.STRUCTURE_REFERENCES;
+      return BranchChunk.Status.STRUCTURE_REFERENCES;
     } else if (chunkStatus == ChunkStatus.BIOMES) {
-      return Status.BIOMES;
+      return BranchChunk.Status.BIOMES;
     } else if (chunkStatus == ChunkStatus.NOISE) {
-      return Status.NOISE;
+      return BranchChunk.Status.NOISE;
     } else if (chunkStatus == ChunkStatus.SURFACE) {
-      return Status.SURFACE;
+      return BranchChunk.Status.SURFACE;
     } else if (chunkStatus == ChunkStatus.CARVERS) {
-      return Status.CARVERS;
+      return BranchChunk.Status.CARVERS;
     } else if (chunkStatus == ChunkStatus.FEATURES) {
-      return Status.FEATURES;
+      return BranchChunk.Status.FEATURES;
     } else if (chunkStatus == ChunkStatus.LIGHT) {
-      return Status.LIGHT;
+      return BranchChunk.Status.LIGHT;
     } else if (chunkStatus == ChunkStatus.SPAWN) {
-      return Status.SPAWN;
-    } else if (chunkStatus == ChunkStatus.FULL) {
-      return Status.FULL;
+      return BranchChunk.Status.SPAWN;
+    } else {
+      return chunkStatus == ChunkStatus.FULL
+        ? BranchChunk.Status.FULL
+        : BranchChunk.Status.EMPTY;
     }
-    return Status.EMPTY;
   }
 
   public Status getStatus() {

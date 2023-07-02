@@ -2,76 +2,60 @@ package xuan.cat.fartherviewdistance.code.data;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * 網路速度監聽器
- */
 public final class NetworkSpeed {
-    /** 測速用時間戳 */
-    public volatile long speedTimestamp = 0;
-    /** 測速用數據量 */
-    public volatile int speedConsume = 0;
-    /** 測速用 ID */
-    public volatile Long speedID = null;
 
-    /** 延遲用時間戳 */
-    public volatile long pingTimestamp = 0;
-    /** 延遲用 ID */
-    public volatile Long pingID = null;
-    /** 最後一次的延遲 */
-    public volatile int lastPing = 0;
+  private final AtomicInteger writeTotal = new AtomicInteger(0);
+  private final AtomicInteger consumeTotal = new AtomicInteger(0);
+  public volatile long speedTimestamp = 0L;
+  public volatile int speedConsume = 0;
+  public volatile Long speedID = null;
+  public volatile long pingTimestamp = 0L;
+  public volatile Long pingID = null;
+  public volatile int lastPing = 0;
+  private volatile int[] writeArray = new int[50];
+  private volatile int[] consumeArray = new int[50];
 
-    /** 寫入紀錄 */
-    private volatile int[] writeArray = new int[50];
-    /** 延遲紀錄 */
-    private volatile int[] consumeArray = new int[50];
-    /** 寫入累計 */
-    private final AtomicInteger writeTotal = new AtomicInteger(0);
-    /** 寫入累計 */
-    private final AtomicInteger consumeTotal = new AtomicInteger(0);
-
-
-    /**
-     * 加入
-     */
-    public void add(int ping, int length) {
-        synchronized (writeTotal) {
-            writeTotal.addAndGet(length);
-            consumeTotal.addAndGet(ping);
-            writeArray[0] += length;
-            consumeArray[0] += ping;
-        }
+  public void add(int ping, int length) {
+    synchronized (this.writeTotal) {
+      this.writeTotal.addAndGet(length);
+      this.consumeTotal.addAndGet(ping);
+      this.writeArray[0] += length;
+      this.consumeArray[0] += ping;
     }
+  }
 
-
-    /**
-     * @return 平均速度
-     */
-    public int avg() {
-        synchronized (writeTotal) {
-            int writeGet = writeTotal.get();
-            int consumeGet = Math.max(1, consumeTotal.get());
-            if (writeGet == 0) {
-                return 0;
-            } else {
-                return writeGet / consumeGet;
-            }
-        }
+  public int avg() {
+    synchronized (this.writeTotal) {
+      int writeGet = this.writeTotal.get();
+      int consumeGet = Math.max(1, this.consumeTotal.get());
+      return writeGet == 0 ? 0 : writeGet / consumeGet;
     }
+  }
 
-
-    /**
-     * 下一個 tick
-     */
-    public void next() {
-        synchronized (writeTotal) {
-            writeTotal.addAndGet(-writeArray[writeArray.length - 1]);
-            consumeTotal.addAndGet(-consumeArray[consumeArray.length - 1]);
-            int[] writeArrayClone = new int[writeArray.length];
-            int[] consumeArrayClone = new int[consumeArray.length];
-            System.arraycopy(writeArray, 0, writeArrayClone, 1, writeArray.length - 1);
-            System.arraycopy(consumeArray, 0, consumeArrayClone, 1, consumeArray.length - 1);
-            writeArray = writeArrayClone;
-            consumeArray = consumeArrayClone;
-        }
+  public void next() {
+    synchronized (this.writeTotal) {
+      this.writeTotal.addAndGet(-this.writeArray[this.writeArray.length - 1]);
+      this.consumeTotal.addAndGet(
+          -this.consumeArray[this.consumeArray.length - 1]
+        );
+      int[] writeArrayClone = new int[this.writeArray.length];
+      int[] consumeArrayClone = new int[this.consumeArray.length];
+      System.arraycopy(
+        this.writeArray,
+        0,
+        writeArrayClone,
+        1,
+        this.writeArray.length - 1
+      );
+      System.arraycopy(
+        this.consumeArray,
+        0,
+        consumeArrayClone,
+        1,
+        this.consumeArray.length - 1
+      );
+      this.writeArray = writeArrayClone;
+      this.consumeArray = consumeArrayClone;
     }
+  }
 }
