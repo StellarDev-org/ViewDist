@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -84,7 +85,7 @@ public final class Branch_120_Chunk implements BranchChunk {
             new LevelChunkSection(
               worldServer.registryAccess().registryOrThrow(Registries.BIOME),
               levelChunk.getLevel(),
-              levelChunk.getPos(),
+              new ChunkPos(levelChunk.locX, levelChunk.locZ),
               indexY
             );
       }

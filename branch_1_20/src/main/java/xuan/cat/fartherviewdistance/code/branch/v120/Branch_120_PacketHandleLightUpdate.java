@@ -9,11 +9,7 @@ public final class Branch_120_PacketHandleLightUpdate {
 
   public Branch_120_PacketHandleLightUpdate() {}
 
-  public void write(
-    FriendlyByteBuf serializer,
-    Branch_120_ChunkLight light,
-    boolean trustEdges
-  ) {
+  public void write(FriendlyByteBuf serializer, Branch_120_ChunkLight light) {
     List<byte[]> dataSky = new ArrayList<>();
     List<byte[]> dataBlock = new ArrayList<>();
     BitSet notSkyEmpty = new BitSet();
@@ -32,7 +28,6 @@ public final class Branch_120_PacketHandleLightUpdate {
       );
     }
 
-    serializer.writeBoolean(trustEdges);
     serializer.writeBitSet(notSkyEmpty);
     serializer.writeBitSet(notBlockEmpty);
     serializer.writeBitSet(isSkyEmpty);

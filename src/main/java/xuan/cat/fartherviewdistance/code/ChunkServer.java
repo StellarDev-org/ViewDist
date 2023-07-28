@@ -31,26 +31,26 @@ public final class ChunkServer {
   public static final Random random = new Random();
   public final BranchMinecraft branchMinecraft;
   public final BranchPacket branchPacket;
-  public final Map<Player, PlayerChunkView> playersViewMap = new ConcurrentHashMap();
+  public final Map<Player, PlayerChunkView> playersViewMap = new ConcurrentHashMap<>();
   public final CumulativeReport serverCumulativeReport = new CumulativeReport();
-  public final Map<World, CumulativeReport> worldsCumulativeReport = new ConcurrentHashMap();
-  public final Map<Integer, CumulativeReport> threadsCumulativeReport = new ConcurrentHashMap();
+  public final Map<World, CumulativeReport> worldsCumulativeReport = new ConcurrentHashMap<>();
+  public final Map<Integer, CumulativeReport> threadsCumulativeReport = new ConcurrentHashMap<>();
   public final Set<Thread> threadsSet = ConcurrentHashMap.newKeySet();
   public final LangFiles lang = new LangFiles();
   private final ConfigData configData;
   private final Plugin plugin;
   private final Set<BukkitTask> bukkitTasks = ConcurrentHashMap.newKeySet();
   private final NetworkTraffic serverNetworkTraffic = new NetworkTraffic();
-  private final Map<World, NetworkTraffic> worldsNetworkTraffic = new ConcurrentHashMap();
+  private final Map<World, NetworkTraffic> worldsNetworkTraffic = new ConcurrentHashMap<>();
   private final AtomicInteger serverGeneratedChunk = new AtomicInteger(0);
-  private final Map<World, AtomicInteger> worldsGeneratedChunk = new ConcurrentHashMap();
+  private final Map<World, AtomicInteger> worldsGeneratedChunk = new ConcurrentHashMap<>();
   private final Set<Runnable> waitMoveSyncQueue = ConcurrentHashMap.newKeySet();
   private final ViewShape viewShape;
   public volatile boolean globalPause = false;
   private boolean running = true;
   private ScheduledExecutorService multithreadedService;
   private AtomicBoolean multithreadedCanRun;
-  private List<World> lastWorldList = new ArrayList();
+  private List<World> lastWorldList = new ArrayList<>();
 
   public ChunkServer(
     ConfigData configData,
@@ -65,14 +65,12 @@ public final class ChunkServer {
     this.branchPacket = branchPacket;
     this.viewShape = viewShape;
     BukkitScheduler scheduler = Bukkit.getScheduler();
+    this.bukkitTasks.add(scheduler.runTaskTimer(plugin, this::tickSync, 0, 1));
     this.bukkitTasks.add(
-        scheduler.runTaskTimer(plugin, this::tickSync, 0L, 1L)
+        scheduler.runTaskTimerAsynchronously(plugin, this::tickAsync, 0, 1)
       );
     this.bukkitTasks.add(
-        scheduler.runTaskTimerAsynchronously(plugin, this::tickAsync, 0L, 1L)
-      );
-    this.bukkitTasks.add(
-        scheduler.runTaskTimerAsynchronously(plugin, this::tickReport, 0L, 20L)
+        scheduler.runTaskTimerAsynchronously(plugin, this::tickReport, 0, 20)
       );
     this.reloadMultithreaded();
   }
@@ -200,8 +198,8 @@ public final class ChunkServer {
     this.waitMoveSyncQueue.removeIf(runnable -> {
         try {
           runnable.run();
-        } catch (Exception var2) {
-          var2.printStackTrace();
+        } catch (Exception exception) {
+          exception.printStackTrace();
         }
 
         return true;
@@ -256,16 +254,16 @@ public final class ChunkServer {
 
             view.moveTooFast = view.overSpeed();
           });
-      } catch (Exception var10) {
-        var10.printStackTrace();
+      } catch (Exception exception) {
+        exception.printStackTrace();
       }
 
       long endTime = System.currentTimeMillis();
-      long needSleep = 50L - (endTime - startTime);
-      if (needSleep > 0L) {
+      long needSleep = 50 - (endTime - startTime);
+      if (needSleep > 0) {
         try {
           Thread.sleep(needSleep);
-        } catch (InterruptedException var9) {}
+        } catch (InterruptedException ignored) {}
       }
     }
   }
@@ -288,7 +286,7 @@ public final class ChunkServer {
   ) {
     while (canRun.get()) {
       long startTime = System.currentTimeMillis();
-      long effectiveTime = startTime + 50L;
+      long effectiveTime = startTime + 50;
       if (!this.globalPause) {
         try {
           List<World> worldList = this.lastWorldList;
@@ -302,359 +300,340 @@ public final class ChunkServer {
             view.move();
           }
 
-          Map<World, List<PlayerChunkView>> worldsViews = new HashMap();
+          Map<World, List<PlayerChunkView>> worldsViews = new HashMap<>();
 
           for (PlayerChunkView view : viewList) {
             (
               (List) worldsViews.computeIfAbsent(
                 view.getLastWorld(),
-                key -> new ArrayList()
+                key -> new ArrayList<>()
               )
             ).add(view);
           }
 
-          label225:for (World world : worldList) {
-            ConfigData.World configWorld =
-              this.configData.getWorld(world.getName());
-            if (configWorld.enable) {
-              CumulativeReport worldCumulativeReport = (CumulativeReport) this.worldsCumulativeReport.get(
-                  world
-                );
-              if (worldCumulativeReport != null) {
-                NetworkTraffic worldNetworkTraffic = (NetworkTraffic) this.worldsNetworkTraffic.get(
-                    world
-                  );
-                if (worldNetworkTraffic != null) {
-                  if (
-                    this.serverNetworkTraffic.exceed(
-                        this.configData.getServerSendTickMaxBytes()
+          handleServer:{
+            for (World world : worldList) {
+              // 世界配置
+              ConfigData.World configWorld = configData.getWorld(
+                world.getName()
+              );
+              if (!configWorld.enable) continue;
+              // 世界報告
+              CumulativeReport worldCumulativeReport = worldsCumulativeReport.get(
+                world
+              );
+              if (worldCumulativeReport == null) continue;
+              // 世界網路流量
+              NetworkTraffic worldNetworkTraffic = worldsNetworkTraffic.get(
+                world
+              );
+              if (worldNetworkTraffic == null) continue;
+              if (
+                serverNetworkTraffic.exceed(
+                  configData.getServerSendTickMaxBytes()
+                )
+              ) break handleServer;
+              if (
+                worldNetworkTraffic.exceed(
+                  configWorld.getWorldSendTickMaxBytes()
+                )
+              ) continue;
+
+              /// 世界已生成的區塊數量
+              AtomicInteger worldGeneratedChunk = worldsGeneratedChunk.getOrDefault(
+                world,
+                new AtomicInteger(Integer.MAX_VALUE)
+              );
+
+              handleWorld:{
+                // 所有玩家都網路流量都已滿載
+                boolean playersFull = false;
+                while (
+                  !playersFull && effectiveTime >= System.currentTimeMillis()
+                ) {
+                  playersFull = true;
+                  for (PlayerChunkView view : worldsViews.getOrDefault(
+                    world,
+                    new ArrayList<>(0)
+                  )) {
+                    if (
+                      serverNetworkTraffic.exceed(
+                        configData.getServerSendTickMaxBytes()
                       )
-                  ) {
-                    break;
-                  }
+                    ) break handleServer;
+                    if (
+                      worldNetworkTraffic.exceed(
+                        configWorld.getWorldSendTickMaxBytes()
+                      )
+                    ) break handleWorld;
+                    synchronized (view.networkTraffic) {
+                      Integer forciblySendSecondMaxBytes =
+                        view.forciblySendSecondMaxBytes;
+                      if (
+                        view.networkTraffic.exceed(
+                          forciblySendSecondMaxBytes != null
+                            ? (int) (
+                              forciblySendSecondMaxBytes *
+                              configData.playerNetworkSpeedUseDegree
+                            ) /
+                            20
+                            : configWorld.getPlayerSendTickMaxBytes()
+                        )
+                      ) continue;
+                      if (
+                        configData.autoAdaptPlayerNetworkSpeed &&
+                        view.networkTraffic.exceed(
+                          Math.max(1, view.networkSpeed.avg() * 50)
+                        )
+                      ) continue;
+                    }
+                    if (view.waitSend) {
+                      playersFull = false;
+                      continue;
+                    }
+                    if (view.moveTooFast) continue;
+                    view.waitSend = true;
+                    long syncKey = view.syncKey;
+                    Long chunkKey = view.next();
+                    if (chunkKey == null) {
+                      view.waitSend = false;
+                      continue;
+                    }
+                    playersFull = false;
+                    int chunkX = ViewMap.getX(chunkKey);
+                    int chunkZ = ViewMap.getZ(chunkKey);
 
-                  if (
-                    !worldNetworkTraffic.exceed(
-                      configWorld.getWorldSendTickMaxBytes()
-                    )
-                  ) {
-                    AtomicInteger worldGeneratedChunk = (AtomicInteger) this.worldsGeneratedChunk.getOrDefault(
-                        world,
-                        new AtomicInteger(Integer.MAX_VALUE)
-                      );
-                    boolean playersFull = false;
+                    handlePlayer:{
+                      if (!configData.disableFastProcess) {
+                        // 讀取最新
+                        try {
+                          if (configWorld.readServerLoadedChunk) {
+                            BranchChunk chunk = branchMinecraft.getChunkFromMemoryCache(
+                              world,
+                              chunkX,
+                              chunkZ
+                            );
+                            if (chunk != null) {
+                              // 讀取快取
+                              serverCumulativeReport.increaseLoadFast();
+                              worldCumulativeReport.increaseLoadFast();
+                              view.cumulativeReport.increaseLoadFast();
+                              threadCumulativeReport.increaseLoadFast();
+                              List<Runnable> asyncRunnable = new ArrayList<>();
+                              BranchChunkLight chunkLight = branchMinecraft.fromLight(
+                                world
+                              );
+                              BranchNBT chunkNBT = chunk.toNBT(
+                                chunkLight,
+                                asyncRunnable
+                              );
+                              asyncRunnable.forEach(Runnable::run);
+                              sendChunk(
+                                world,
+                                configWorld,
+                                worldNetworkTraffic,
+                                view,
+                                chunkX,
+                                chunkZ,
+                                chunkNBT,
+                                chunkLight,
+                                syncKey,
+                                worldCumulativeReport,
+                                threadCumulativeReport
+                              );
+                              break handlePlayer;
+                            }
+                          }
+                        } catch (
+                          NullPointerException
+                          | NoClassDefFoundError
+                          | NoSuchMethodError
+                          | NoSuchFieldError exception
+                        ) {
+                          exception.printStackTrace();
+                        } catch (Exception ignored) {}
 
-                    label223:while (
-                      !playersFull &&
-                      effectiveTime >= System.currentTimeMillis()
-                    ) {
-                      playersFull = true;
-                      Iterator var17 =
-                        (
-                          (List) worldsViews.getOrDefault(
+                        // 讀取最快
+                        try {
+                          BranchNBT chunkNBT = branchMinecraft.getChunkNBTFromDisk(
                             world,
-                            new ArrayList(0)
-                          )
-                        ).iterator();
-
-                      while (true) {
-                        PlayerChunkView view;
-                        while (true) {
-                          if (!var17.hasNext()) {
-                            try {
-                              Thread.sleep(0L);
-                            } catch (InterruptedException var31) {}
-                            continue label223;
-                          }
-
-                          view = (PlayerChunkView) var17.next();
+                            chunkX,
+                            chunkZ
+                          );
                           if (
-                            this.serverNetworkTraffic.exceed(
-                                this.configData.getServerSendTickMaxBytes()
-                              )
+                            chunkNBT != null &&
+                            branchMinecraft
+                              .fromStatus(chunkNBT)
+                              .isAbove(BranchChunk.Status.FULL)
                           ) {
-                            break label225;
+                            // 讀取區域文件
+                            serverCumulativeReport.increaseLoadFast();
+                            worldCumulativeReport.increaseLoadFast();
+                            view.cumulativeReport.increaseLoadFast();
+                            threadCumulativeReport.increaseLoadFast();
+                            sendChunk(
+                              world,
+                              configWorld,
+                              worldNetworkTraffic,
+                              view,
+                              chunkX,
+                              chunkZ,
+                              chunkNBT,
+                              branchMinecraft.fromLight(world, chunkNBT),
+                              syncKey,
+                              worldCumulativeReport,
+                              threadCumulativeReport
+                            );
+                            break handlePlayer;
                           }
+                        } catch (
+                          NullPointerException
+                          | NoClassDefFoundError
+                          | NoSuchMethodError
+                          | NoSuchFieldError exception
+                        ) {
+                          exception.printStackTrace();
+                        } catch (Exception ignored) {}
+                      }
 
-                          if (
-                            worldNetworkTraffic.exceed(
-                              configWorld.getWorldSendTickMaxBytes()
-                            )
+                      boolean canGenerated =
+                        serverGeneratedChunk.get() <
+                        configData.serverTickMaxGenerateAmount &&
+                        worldGeneratedChunk.get() <
+                        configWorld.worldTickMaxGenerateAmount;
+                      if (canGenerated) {
+                        serverGeneratedChunk.incrementAndGet();
+                        worldGeneratedChunk.incrementAndGet();
+                      }
+
+                      // 生成
+                      try {
+                        // paper
+                        Chunk chunk = world
+                          .getChunkAtAsync(chunkX, chunkZ, canGenerated, true)
+                          .get();
+                        if (chunk != null) {
+                          serverCumulativeReport.increaseLoadSlow();
+                          worldCumulativeReport.increaseLoadSlow();
+                          view.cumulativeReport.increaseLoadSlow();
+                          threadCumulativeReport.increaseLoadSlow();
+                          try {
+                            List<Runnable> asyncRunnable = new ArrayList<>();
+                            BranchChunkLight chunkLight = branchMinecraft.fromLight(
+                              world
+                            );
+                            BranchNBT chunkNBT = branchMinecraft
+                              .fromChunk(world, chunk)
+                              .toNBT(chunkLight, asyncRunnable);
+                            asyncRunnable.forEach(Runnable::run);
+                            sendChunk(
+                              world,
+                              configWorld,
+                              worldNetworkTraffic,
+                              view,
+                              chunkX,
+                              chunkZ,
+                              chunkNBT,
+                              chunkLight,
+                              syncKey,
+                              worldCumulativeReport,
+                              threadCumulativeReport
+                            );
+                            break handlePlayer;
+                          } catch (
+                            NullPointerException
+                            | NoClassDefFoundError
+                            | NoSuchMethodError
+                            | NoSuchFieldError exception
                           ) {
-                            continue label225;
-                          }
-
-                          synchronized (view.networkTraffic) {
-                            Integer forciblySendSecondMaxBytes =
-                              view.forciblySendSecondMaxBytes;
-                            if (
-                              !view.networkTraffic.exceed(
-                                forciblySendSecondMaxBytes != null
-                                  ? (int) (
-                                    (double) forciblySendSecondMaxBytes.intValue() *
-                                    this.configData.playerNetworkSpeedUseDegree
-                                  ) /
-                                  20
-                                  : configWorld.getPlayerSendTickMaxBytes()
-                              )
-                            ) {
-                              if (
-                                this.configData.autoAdaptPlayerNetworkSpeed &&
-                                view.networkTraffic.exceed(
-                                  Math.max(1, view.networkSpeed.avg() * 50)
-                                )
-                              ) {
-                                continue;
-                              }
-                              break;
-                            }
-                          }
+                            exception.printStackTrace();
+                          } catch (Exception ignored) {}
+                        } else if (
+                          configData.serverTickMaxGenerateAmount > 0 &&
+                          configWorld.worldTickMaxGenerateAmount > 0
+                        ) {
+                          view.remove(chunkX, chunkZ);
+                          break handlePlayer;
                         }
-
-                        if (view.waitSend) {
-                          playersFull = false;
-                        } else if (!view.moveTooFast) {
-                          view.waitSend = true;
-                          long syncKey = view.syncKey;
-                          Long chunkKey = view.next();
-                          if (chunkKey == null) {
-                            view.waitSend = false;
-                          } else {
-                            label263:{
-                              playersFull = false;
-                              int chunkX = ViewMap.getX(chunkKey);
-                              int chunkZ = ViewMap.getZ(chunkKey);
-                              if (!this.configData.disableFastProcess) {
-                                try {
-                                  if (configWorld.readServerLoadedChunk) {
-                                    BranchChunk chunk =
-                                      this.branchMinecraft.getChunkFromMemoryCache(
-                                          world,
-                                          chunkX,
-                                          chunkZ
-                                        );
-                                    if (chunk != null) {
-                                      this.serverCumulativeReport.increaseLoadFast();
-                                      worldCumulativeReport.increaseLoadFast();
-                                      view.cumulativeReport.increaseLoadFast();
-                                      threadCumulativeReport.increaseLoadFast();
-                                      List<Runnable> asyncRunnable = new ArrayList();
-                                      BranchChunkLight chunkLight =
-                                        this.branchMinecraft.fromLight(world);
-                                      BranchNBT chunkNBT = chunk.toNBT(
-                                        chunkLight,
-                                        asyncRunnable
-                                      );
-                                      asyncRunnable.forEach(Runnable::run);
-                                      this.sendChunk(
-                                          world,
-                                          configWorld,
-                                          worldNetworkTraffic,
-                                          view,
-                                          chunkX,
-                                          chunkZ,
-                                          chunkNBT,
-                                          chunkLight,
-                                          syncKey,
-                                          worldCumulativeReport,
-                                          threadCumulativeReport
-                                        );
-                                      break label263;
-                                    }
-                                  }
-                                } catch (
-                                  NoClassDefFoundError
-                                  | NoSuchMethodError
-                                  | NoSuchFieldError
-                                  | NullPointerException var43
-                                ) {
-                                  var43.printStackTrace();
-                                } catch (Exception var44) {}
-
-                                try {
-                                  BranchNBT chunkNBT =
-                                    this.branchMinecraft.getChunkNBTFromDisk(
-                                        world,
-                                        chunkX,
-                                        chunkZ
-                                      );
-                                  if (
-                                    chunkNBT != null &&
-                                    this.branchMinecraft.fromStatus(chunkNBT)
-                                      .isAbove(BranchChunk.Status.FULL)
-                                  ) {
-                                    this.serverCumulativeReport.increaseLoadFast();
-                                    worldCumulativeReport.increaseLoadFast();
-                                    view.cumulativeReport.increaseLoadFast();
-                                    threadCumulativeReport.increaseLoadFast();
-                                    this.sendChunk(
-                                        world,
-                                        configWorld,
-                                        worldNetworkTraffic,
-                                        view,
-                                        chunkX,
-                                        chunkZ,
-                                        chunkNBT,
-                                        this.branchMinecraft.fromLight(
-                                            world,
-                                            chunkNBT
-                                          ),
-                                        syncKey,
-                                        worldCumulativeReport,
-                                        threadCumulativeReport
-                                      );
-                                    break label263;
-                                  }
-                                } catch (
-                                  NoClassDefFoundError
-                                  | NoSuchMethodError
-                                  | NoSuchFieldError
-                                  | NullPointerException var41
-                                ) {
-                                  var41.printStackTrace();
-                                } catch (Exception var42) {}
-                              }
-
-                              boolean canGenerated =
-                                this.serverGeneratedChunk.get() <
-                                this.configData.serverTickMaxGenerateAmount &&
-                                worldGeneratedChunk.get() <
-                                configWorld.worldTickMaxGenerateAmount;
-                              if (canGenerated) {
-                                this.serverGeneratedChunk.incrementAndGet();
-                                worldGeneratedChunk.incrementAndGet();
-                              }
-
-                              try {
-                                org.bukkit.Chunk chunk = (org.bukkit.Chunk) world
-                                  .getChunkAtAsync(
-                                    chunkX,
-                                    chunkZ,
-                                    canGenerated,
-                                    true
+                      } catch (ExecutionException ignored) {
+                        view.remove(chunkX, chunkZ);
+                        break handlePlayer;
+                      } catch (NoSuchMethodError methodError) {
+                        // spigot (不推薦)
+                        if (canGenerated) {
+                          serverCumulativeReport.increaseLoadSlow();
+                          worldCumulativeReport.increaseLoadSlow();
+                          view.cumulativeReport.increaseLoadSlow();
+                          threadCumulativeReport.increaseLoadSlow();
+                          try {
+                            List<Runnable> asyncRunnable = new ArrayList<>();
+                            BranchChunkLight chunkLight = branchMinecraft.fromLight(
+                              world
+                            );
+                            CompletableFuture<BranchNBT> syncNBT = new CompletableFuture<>();
+                            waitMoveSyncQueue.add(() ->
+                              syncNBT.complete(
+                                branchMinecraft
+                                  .fromChunk(
+                                    world,
+                                    world.getChunkAt(chunkX, chunkZ)
                                   )
-                                  .get();
-                                if (chunk != null) {
-                                  this.serverCumulativeReport.increaseLoadSlow();
-                                  worldCumulativeReport.increaseLoadSlow();
-                                  view.cumulativeReport.increaseLoadSlow();
-                                  threadCumulativeReport.increaseLoadSlow();
-
-                                  try {
-                                    List<Runnable> asyncRunnable = new ArrayList();
-                                    BranchChunkLight chunkLight =
-                                      this.branchMinecraft.fromLight(world);
-                                    BranchNBT chunkNBT =
-                                      this.branchMinecraft.fromChunk(
-                                          world,
-                                          chunk
-                                        )
-                                        .toNBT(chunkLight, asyncRunnable);
-                                    asyncRunnable.forEach(Runnable::run);
-                                    this.sendChunk(
-                                        world,
-                                        configWorld,
-                                        worldNetworkTraffic,
-                                        view,
-                                        chunkX,
-                                        chunkZ,
-                                        chunkNBT,
-                                        chunkLight,
-                                        syncKey,
-                                        worldCumulativeReport,
-                                        threadCumulativeReport
-                                      );
-                                  } catch (
-                                    NoClassDefFoundError
-                                    | NoSuchMethodError
-                                    | NoSuchFieldError
-                                    | NullPointerException var34
-                                  ) {
-                                    var34.printStackTrace();
-                                  } catch (Exception var35) {}
-                                } else if (
-                                  this.configData.serverTickMaxGenerateAmount >
-                                  0 &&
-                                  configWorld.worldTickMaxGenerateAmount > 0
-                                ) {
-                                  view.remove(chunkX, chunkZ);
-                                }
-                              } catch (ExecutionException var36) {
-                                view.remove(chunkX, chunkZ);
-                              } catch (NoSuchMethodError var37) {
-                                if (canGenerated) {
-                                  this.serverCumulativeReport.increaseLoadSlow();
-                                  worldCumulativeReport.increaseLoadSlow();
-                                  view.cumulativeReport.increaseLoadSlow();
-                                  threadCumulativeReport.increaseLoadSlow();
-
-                                  try {
-                                    List<Runnable> asyncRunnable = new ArrayList();
-                                    BranchChunkLight chunkLight =
-                                      this.branchMinecraft.fromLight(world);
-                                    CompletableFuture<BranchNBT> syncNBT = new CompletableFuture();
-                                    this.waitMoveSyncQueue.add(
-                                        (Runnable) () ->
-                                          syncNBT.complete(
-                                            this.branchMinecraft.fromChunk(
-                                                world,
-                                                world.getChunkAt(chunkX, chunkZ)
-                                              )
-                                              .toNBT(chunkLight, asyncRunnable)
-                                          )
-                                      );
-                                    BranchNBT chunkNBT = (BranchNBT) syncNBT.get();
-                                    asyncRunnable.forEach(Runnable::run);
-                                    this.sendChunk(
-                                        world,
-                                        configWorld,
-                                        worldNetworkTraffic,
-                                        view,
-                                        chunkX,
-                                        chunkZ,
-                                        chunkNBT,
-                                        chunkLight,
-                                        syncKey,
-                                        worldCumulativeReport,
-                                        threadCumulativeReport
-                                      );
-                                  } catch (
-                                    NoClassDefFoundError
-                                    | NoSuchMethodError
-                                    | NoSuchFieldError
-                                    | NullPointerException var32
-                                  ) {
-                                    var32.printStackTrace();
-                                  } catch (Exception var33) {}
-                                }
-                              } catch (InterruptedException var38) {} catch (
-                                Exception var39
-                              ) {
-                                var39.printStackTrace();
-                              }
-                            }
-
-                            view.waitSend = false;
-                          }
+                                  .toNBT(chunkLight, asyncRunnable)
+                              )
+                            );
+                            BranchNBT chunkNBT = syncNBT.get();
+                            asyncRunnable.forEach(Runnable::run);
+                            sendChunk(
+                              world,
+                              configWorld,
+                              worldNetworkTraffic,
+                              view,
+                              chunkX,
+                              chunkZ,
+                              chunkNBT,
+                              chunkLight,
+                              syncKey,
+                              worldCumulativeReport,
+                              threadCumulativeReport
+                            );
+                            break handlePlayer;
+                          } catch (
+                            NullPointerException
+                            | NoClassDefFoundError
+                            | NoSuchMethodError
+                            | NoSuchFieldError exception
+                          ) {
+                            exception.printStackTrace();
+                          } catch (Exception ignored) {}
                         }
+                      } catch (InterruptedException ignored) {} catch (
+                        Exception ex
+                      ) {
+                        ex.printStackTrace();
                       }
                     }
+
+                    view.waitSend = false;
                   }
+
+                  try {
+                    Thread.sleep(0L);
+                  } catch (InterruptedException ignored) {}
                 }
               }
             }
           }
-        } catch (Exception var45) {
-          var45.printStackTrace();
+        } catch (Exception exception) {
+          exception.printStackTrace();
         }
       }
 
       long endTime = System.currentTimeMillis();
-      long needSleep = 50L - (endTime - startTime);
-      if (needSleep > 0L) {
+      long needSleep = 50 - (endTime - startTime);
+      if (needSleep > 0) {
         try {
           Thread.sleep(needSleep);
-        } catch (InterruptedException var30) {}
+        } catch (InterruptedException ignored) {}
       }
     }
   }
@@ -717,86 +696,80 @@ public final class ChunkServer {
       world
     );
     Bukkit.getPluginManager().callEvent(event);
-    if (!event.isCancelled()) {
+    if (event.isCancelled()) return;
+    if (configWorld.preventXray != null && configWorld.preventXray.size() > 0) {
+      for (Map.Entry<BlockData, BlockData[]> conversionMap : configWorld.preventXray.entrySet()) chunk.replaceAllMaterial(
+        conversionMap.getValue(),
+        conversionMap.getKey()
+      );
+    }
+
+    AtomicInteger consumeTraffic = new AtomicInteger(0);
+    Consumer<Player> chunkAndLightPacket =
+      this.branchPacket.sendChunkAndLight(
+          chunk,
+          chunkLight,
+          configWorld.sendTitleData,
+          consumeTraffic::addAndGet
+        );
+    synchronized (view.networkSpeed) {
+      Location nowLoc = view.getPlayer().getLocation();
+      int nowChunkX = nowLoc.getBlockX() >> 4;
+      int nowChunkZ = nowLoc.getBlockZ() >> 4;
+      ViewMap viewMap = view.getMap();
+      if (world != nowLoc.getWorld()) {
+        view.getMap().markWaitPosition(chunkX, chunkZ);
+        return;
+      }
+      if (view.getMap().isWaitPosition(chunkX, chunkZ)) return;
       if (
-        configWorld.preventXray != null && configWorld.preventXray.size() > 0
-      ) {
-        for (Entry<BlockData, BlockData[]> conversionMap : configWorld.preventXray.entrySet()) {
-          chunk.replaceAllMaterial(
-            (BlockData[]) conversionMap.getValue(),
-            (BlockData) conversionMap.getKey()
-          );
+        viewShape.isInsideEdge(
+          nowChunkX,
+          nowChunkZ,
+          chunkX,
+          chunkZ,
+          viewMap.serverDistance
+        )
+      ) return;
+      if (view.syncKey != syncKey) return;
+      if (!running) return;
+
+      boolean needMeasure =
+        this.configData.autoAdaptPlayerNetworkSpeed &&
+        (
+          view.networkSpeed.speedID == null &&
+          view.networkSpeed.speedTimestamp +
+          1000 <=
+          System.currentTimeMillis() ||
+          view.networkSpeed.speedTimestamp + 30000 <= System.currentTimeMillis()
+        );
+      // ping
+      if (needMeasure) {
+        if (view.networkSpeed.speedID != null) {
+          view.networkSpeed.add(30000, 0);
         }
+
+        long pingID = random.nextLong();
+        view.networkSpeed.pingID = pingID;
+        view.networkSpeed.pingTimestamp = System.currentTimeMillis();
+        this.branchPacket.sendKeepAlive(view.getPlayer(), pingID);
       }
 
-      AtomicInteger consumeTraffic = new AtomicInteger(0);
-      Consumer<Player> chunkAndLightPacket =
-        this.branchPacket.sendChunkAndLight(
-            chunk,
-            chunkLight,
-            configWorld.sendTitleData,
-            consumeTraffic::addAndGet
-          );
-      synchronized (view.networkSpeed) {
-        Location nowLoc = view.getPlayer().getLocation();
-        int nowChunkX = nowLoc.getBlockX() >> 4;
-        int nowChunkZ = nowLoc.getBlockZ() >> 4;
-        ViewMap viewMap = view.getMap();
-        if (world != nowLoc.getWorld()) {
-          view.getMap().markWaitPosition(chunkX, chunkZ);
-        } else if (!view.getMap().isWaitPosition(chunkX, chunkZ)) {
-          if (
-            !this.viewShape.isInsideEdge(
-                nowChunkX,
-                nowChunkZ,
-                chunkX,
-                chunkZ,
-                viewMap.serverDistance
-              )
-          ) {
-            if (view.syncKey == syncKey) {
-              if (this.running) {
-                boolean needMeasure =
-                  this.configData.autoAdaptPlayerNetworkSpeed &&
-                  (
-                    view.networkSpeed.speedID == null &&
-                    view.networkSpeed.speedTimestamp +
-                    1000L <=
-                    System.currentTimeMillis() ||
-                    view.networkSpeed.speedTimestamp +
-                    30000L <=
-                    System.currentTimeMillis()
-                  );
-                if (needMeasure) {
-                  if (view.networkSpeed.speedID != null) {
-                    view.networkSpeed.add(30000, 0);
-                  }
+      chunkAndLightPacket.accept(view.getPlayer());
+      serverNetworkTraffic.use(consumeTraffic.get());
+      worldNetworkTraffic.use(consumeTraffic.get());
+      view.networkTraffic.use(consumeTraffic.get());
+      serverCumulativeReport.addConsume(consumeTraffic.get());
+      worldCumulativeReport.addConsume(consumeTraffic.get());
+      view.cumulativeReport.addConsume(consumeTraffic.get());
+      threadCumulativeReport.addConsume(consumeTraffic.get());
 
-                  long pingID = random.nextLong();
-                  view.networkSpeed.pingID = pingID;
-                  view.networkSpeed.pingTimestamp = System.currentTimeMillis();
-                  this.branchPacket.sendKeepAlive(view.getPlayer(), pingID);
-                }
-
-                chunkAndLightPacket.accept(view.getPlayer());
-                this.serverNetworkTraffic.use(consumeTraffic.get());
-                worldNetworkTraffic.use(consumeTraffic.get());
-                view.networkTraffic.use(consumeTraffic.get());
-                this.serverCumulativeReport.addConsume(consumeTraffic.get());
-                worldCumulativeReport.addConsume(consumeTraffic.get());
-                view.cumulativeReport.addConsume(consumeTraffic.get());
-                threadCumulativeReport.addConsume(consumeTraffic.get());
-                if (needMeasure) {
-                  long speedID = random.nextLong();
-                  view.networkSpeed.speedID = speedID;
-                  view.networkSpeed.speedConsume = consumeTraffic.get();
-                  view.networkSpeed.speedTimestamp = System.currentTimeMillis();
-                  this.branchPacket.sendKeepAlive(view.getPlayer(), speedID);
-                }
-              }
-            }
-          }
-        }
+      if (needMeasure) {
+        long speedID = random.nextLong();
+        view.networkSpeed.speedID = speedID;
+        view.networkSpeed.speedConsume = consumeTraffic.get();
+        view.networkSpeed.speedTimestamp = System.currentTimeMillis();
+        this.branchPacket.sendKeepAlive(view.getPlayer(), speedID);
       }
     }
   }
@@ -812,11 +785,9 @@ public final class ChunkServer {
    */
   public void packetEvent(Player player, PacketEvent event) {
     PlayerChunkView view = this.getView(player);
-    if (view != null) {
-      if (event instanceof PacketMapChunkEvent) {
-        PacketMapChunkEvent chunkEvent = (PacketMapChunkEvent) event;
-        view.send(chunkEvent.getChunkX(), chunkEvent.getChunkZ());
-      }
+    if (view != null && event instanceof PacketMapChunkEvent) {
+      PacketMapChunkEvent chunkEvent = (PacketMapChunkEvent) event;
+      view.send(chunkEvent.getChunkX(), chunkEvent.getChunkZ());
     }
   }
 
@@ -828,16 +799,12 @@ public final class ChunkServer {
    * the game.
    */
   public void respawnView(Player player) {
-    PlayerChunkView view = this.getView(player);
+    PlayerChunkView view = getView(player);
     if (view != null) {
       view.delay();
-      this.waitMoveSyncQueue.add(
-          (Runnable) () ->
-            this.branchPacket.sendViewDistance(
-                player,
-                view.getMap().extendDistance
-              )
-        );
+      waitMoveSyncQueue.add(() ->
+        branchPacket.sendViewDistance(player, view.getMap().extendDistance)
+      );
     }
   }
 
@@ -849,18 +816,13 @@ public final class ChunkServer {
    * @param move The "move" parameter represents the new location that the player is moving to.
    */
   public void unloadView(Player player, Location from, Location move) {
-    PlayerChunkView view = this.getView(player);
-    if (view != null) {
-      int blockDistance = view.getMap().extendDistance << 4;
-      if (from.getWorld() != move.getWorld()) {
-        view.unload();
-      } else if (
-        Math.abs(from.getX() - move.getX()) >= (double) blockDistance ||
-        Math.abs(from.getZ() - move.getZ()) >= (double) blockDistance
-      ) {
-        view.unload();
-      }
-    }
+    PlayerChunkView view = getView(player);
+    if (view == null) return;
+    int blockDistance = view.getMap().extendDistance << 4;
+    if (from.getWorld() != move.getWorld()) view.unload(); else if (
+      Math.abs(from.getX() - move.getX()) >= blockDistance ||
+      Math.abs(from.getZ() - move.getZ()) >= blockDistance
+    ) view.unload();
   }
 
   /**
@@ -868,12 +830,12 @@ public final class ChunkServer {
    * multithreaded service.
    */
   void close() {
-    this.running = false;
+    running = false;
 
     for (BukkitTask task : this.bukkitTasks) {
       task.cancel();
     }
 
-    this.multithreadedService.shutdown();
+    multithreadedService.shutdown();
   }
 }

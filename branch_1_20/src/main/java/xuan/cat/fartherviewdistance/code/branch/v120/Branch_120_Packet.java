@@ -52,11 +52,7 @@ public final class Branch_120_Packet implements BranchPacket {
         ((Branch_120_Chunk) chunk).getLevelChunk(),
         needTile
       );
-    this.handleLightUpdate.write(
-        serializer,
-        (Branch_120_ChunkLight) light,
-        true
-      );
+    this.handleLightUpdate.write(serializer, (Branch_120_ChunkLight) light);
     consumeTraffic.accept(serializer.readableBytes());
     ClientboundLevelChunkWithLightPacket packet = new ClientboundLevelChunkWithLightPacket(
       serializer
