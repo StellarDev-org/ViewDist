@@ -9,5 +9,6 @@
 /branch_1_19/target/
 /branch_1_20/target/
 .idea
-
+.gradle
+gradle
 .paper-nms
