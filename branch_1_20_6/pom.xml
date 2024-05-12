@@ -24,6 +24,19 @@
         <defaultGoal>clean package</defaultGoal>
         <plugins>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <paperweight-mappings-namespace>mojang</paperweight-mappings-namespace>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>ca.bkaw</groupId>
                 <artifactId>paper-nms-maven-plugin</artifactId>
                 <version>1.4.3</version>
@@ -35,6 +48,25 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <devBundle>
+                        <!-- The artifact id of the resulting dependency -->
+                        <id>dev-bundle</id>
+                        <!-- The repository to download the dev-bundle from -->
+                        <repository>
+                            <id>myrepo</id>
+                            <url>https://repo.papermc.io/repository/maven-public/</url>
+                        </repository>
+                        <!-- The artifact to download -->
+                        <artifact>
+                            <groupId>io.papermc.paper</groupId>
+                            <artifactId>dev-bundle</artifactId>
+                            <version>1.20.6-R0.1-20240510.191506-39</version>
+                            <!-- ${gameVersion} will be replaced with the game version to use -->
+                        </artifact>
+                    </devBundle>
+                </configuration>
+            
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -124,8 +156,8 @@
             <scope>provided</scope>
         </dependency> -->
         <dependency>
-            <groupId>ca.bkaw</groupId>
-            <artifactId>paper-nms</artifactId>
+            <groupId>ca.bkaw.nms</groupId>
+            <artifactId>dev-bundle</artifactId>
             <version>1.20.6-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>

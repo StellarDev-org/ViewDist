@@ -6,7 +6,7 @@
 
     <groupId>FartherViewDistance</groupId>
     <artifactId>FartherViewDistance</artifactId>
-    <version>9.8.3</version>
+    <version>9.8.4</version>
     <packaging>jar</packaging>
 
     <name>FartherViewDistance</name>
@@ -60,6 +60,19 @@
                     <target>17</target>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.1</version>
+                <configuration>
+                    <archive>
+                        <manifestEntries>
+                            <paperweight-mappings-namespace>mojang</paperweight-mappings-namespace>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
         </plugins>
         <resources>
             <resource>
@@ -67,6 +80,7 @@
                 <filtering>true</filtering>
             </resource>
         </resources>
+        
     </build>
 
 
