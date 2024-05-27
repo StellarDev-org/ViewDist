@@ -11,6 +11,9 @@ import java.util.Objects;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.Dynamic;
 
+import ca.spottedleaf.starlight.common.light.SWMRNibbleArray;
+import ca.spottedleaf.starlight.common.light.StarLightEngine;
+import io.papermc.paper.util.WorldUtil;
 import it.unimi.dsi.fastutil.shorts.ShortList;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.BlockPos;
@@ -37,10 +40,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.chunk.DataLayer;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.PalettedContainer;
+import net.minecraft.world.level.chunk.PalettedContainer.Strategy;
 import net.minecraft.world.level.chunk.PalettedContainerRO;
 import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.UpgradeData;
@@ -128,13 +131,24 @@ public final class Branch_120_6_ChunkRegionLoader {
         final ChunkPos chunkPos = new ChunkPos(chunkX, chunkZ);
         final UpgradeData upgradeData = nbt.contains("UpgradeData", 10) ? new UpgradeData(nbt.getCompound("UpgradeData"), world)
                 : UpgradeData.EMPTY;
-        final boolean isLightOn = Objects.requireNonNullElse(ChunkStatus.byName(nbt.getString("Status")), ChunkStatus.EMPTY)
-                .isOrAfter(ChunkStatus.LIGHT) && (nbt.get("isLightOn") != null || nbt.getInt("starlight.light_version") == 6);
+        /*
+         * final boolean isLightOn =
+         * Objects.requireNonNullElse(ChunkStatus.byName(nbt.getString("Status")),
+         * ChunkStatus.EMPTY) .isOrAfter(ChunkStatus.LIGHT) && (nbt.get("isLightOn") !=
+         * null || nbt.getInt("starlight.light_version") == 6);
+         */
+        boolean isLightOn = ChunkSerializer.getStatus(nbt) != null && ChunkSerializer.getStatus(nbt).isOrAfter(ChunkStatus.LIGHT)
+                && nbt.get("isLightOn") != null && nbt.getInt("starlight.light_version") == 9;
         final ListTag sectionArrayNBT = nbt.getList("sections", 10);
         final int sectionsCount = world.getSectionsCount();
         final LevelChunkSection[] sections = new LevelChunkSection[sectionsCount];
         final ServerChunkCache chunkSource = world.getChunkSource();
         final LevelLightEngine lightEngine = chunkSource.getLightEngine();
+
+        final SWMRNibbleArray[] blockNibbles = StarLightEngine.getFilledEmptyLight(world);
+        final SWMRNibbleArray[] skyNibbles = StarLightEngine.getFilledEmptyLight(world);
+        final int minSection = WorldUtil.getMinLightSection(world);
+
         final Registry<Biome> biomeRegistry = world.registryAccess().registryOrThrow(Registries.BIOME);
         final Codec<PalettedContainer<Holder<Biome>>> paletteCodec = Branch_120_6_ChunkRegionLoader.makeBiomeCodecRW(biomeRegistry);
         for (int sectionIndex = 0; sectionIndex < sectionArrayNBT.size(); ++sectionIndex) {
@@ -142,10 +156,15 @@ public final class Branch_120_6_ChunkRegionLoader {
             final byte locationY = sectionNBT.getByte("Y");
             final int sectionY = world.getSectionIndexFromSectionY(locationY);
             if (sectionY >= 0 && sectionY < sections.length) {
-                // 方塊轉換器
+                final BlockState[] presetBlockStates = world.chunkPacketBlockController.getPresetBlockStates(world, chunkPos, locationY);
                 PalettedContainer<BlockState> paletteBlock;
                 if (sectionNBT.contains("block_states", 10)) {
-                    paletteBlock = ChunkSerializer.BLOCK_STATE_CODEC.parse(NbtOps.INSTANCE, sectionNBT.getCompound("block_states"))
+
+                    final Codec<PalettedContainer<BlockState>> blockStateCodec = presetBlockStates == null
+                            ? ChunkSerializer.BLOCK_STATE_CODEC
+                            : PalettedContainer.codecRW(Block.BLOCK_STATE_REGISTRY, BlockState.CODEC, Strategy.SECTION_STATES,
+                                    Blocks.AIR.defaultBlockState(), presetBlockStates);
+                    paletteBlock = (PalettedContainer) blockStateCodec.parse(NbtOps.INSTANCE, sectionNBT.getCompound("block_states"))
                             .promotePartial(sx -> {
                             }).getOrThrow(Branch_120_6_NothingException::new);
                 } else {
@@ -173,6 +192,30 @@ public final class Branch_120_6_ChunkRegionLoader {
 
                 final LevelChunkSection chunkSection = new LevelChunkSection(paletteBlock, paletteBiome);
                 sections[sectionY] = chunkSection;
+                final boolean isBlockLight = sectionNBT.contains("BlockLight", 7);
+                final boolean isSkyLight = isLightOn && sectionNBT.contains("SkyLight", 7);
+                if (isLightOn) {
+                    try {
+                        final int y = sectionNBT.getByte("Y");
+                        if (isBlockLight) {
+                            blockNibbles[y - minSection] = new SWMRNibbleArray((byte[]) sectionNBT.getByteArray("BlockLight").clone(),
+                                    sectionNBT.getInt("starlight.blocklight_state"));
+                        } else {
+                            blockNibbles[y - minSection] = new SWMRNibbleArray((byte[]) null,
+                                    sectionNBT.getInt("starlight.blocklight_state"));
+                        }
+
+                        if (isSkyLight) {
+                            skyNibbles[y - minSection] = new SWMRNibbleArray((byte[]) sectionNBT.getByteArray("SkyLight").clone(),
+                                    sectionNBT.getInt("starlight.skylight_state"));
+                        } else if (isLightOn) {
+                            skyNibbles[y - minSection] = new SWMRNibbleArray((byte[]) null, sectionNBT.getInt("starlight.skylight_state"));
+                        }
+                    } catch (final Exception e) {
+                        isLightOn = false;
+                    }
+                }
+
             }
         }
 
@@ -195,6 +238,8 @@ public final class Branch_120_6_ChunkRegionLoader {
                     sx -> BuiltInRegistries.FLUID.getOptional(ResourceLocation.tryParse(sx)), chunkPos);
             final LevelChunk levelChunk = new LevelChunk(world.getLevel(), chunkPos, upgradeData, ticksBlock, ticksFluid, inhabitedTime,
                     sections, null, blendingData);
+            levelChunk.setBlockNibbles(blockNibbles);
+            levelChunk.setSkyNibbles(skyNibbles);
             chunk = levelChunk;
 
             // 實體方塊
@@ -215,6 +260,8 @@ public final class Branch_120_6_ChunkRegionLoader {
                     sx -> BuiltInRegistries.FLUID.getOptional(ResourceLocation.tryParse(sx)), chunkPos);
             final ProtoChunk protochunk = new ProtoChunk(chunkPos, upgradeData, sections, ticksBlock, ticksFluid, world, biomeRegistry,
                     blendingData);
+            protochunk.setBlockNibbles(blockNibbles);
+            protochunk.setSkyNibbles(skyNibbles);
             chunk = protochunk;
             protochunk.setInhabitedTime(inhabitedTime);
             if (nbt.contains("below_zero_retrogen", 10)) {
@@ -229,6 +276,7 @@ public final class Branch_120_6_ChunkRegionLoader {
                 protochunk.setLightEngine(lightEngine);
             }
         }
+
         chunk.setLightCorrect(isLightOn);
 
         // 高度圖
@@ -265,7 +313,7 @@ public final class Branch_120_6_ChunkRegionLoader {
 
     public static BranchChunkLight loadLight(final ServerLevel world, final CompoundTag nbt) {
         // 檢查資料版本
-        if (nbt.contains("DataVersion", 99)) {
+        if (nbt.contains("DataVersion", 3)) {
             final int dataVersion = nbt.getInt("DataVersion");
             if (!Branch_120_6_ChunkRegionLoader.JUST_CORRUPT_IT && dataVersion > Branch_120_6_ChunkRegionLoader.CURRENT_DATA_VERSION) {
                 (new RuntimeException("Server attempted to load chunk saved with newer version of minecraft! " + dataVersion + " > "
@@ -275,7 +323,7 @@ public final class Branch_120_6_ChunkRegionLoader {
         }
 
         final boolean isLightOn = Objects.requireNonNullElse(ChunkStatus.byName(nbt.getString("Status")), ChunkStatus.EMPTY)
-                .isOrAfter(ChunkStatus.LIGHT) && (nbt.get("isLightOn") != null || nbt.getInt("starlight.light_version") == 9);
+                .isOrAfter(ChunkStatus.LIGHT) && (nbt.get("isLightOn") != null && nbt.getInt("starlight.light_version") == 9);
         final boolean hasSkyLight = world.dimensionType().hasSkyLight();
         final ListTag sectionArrayNBT = nbt.getList("sections", 10);
         final Branch_120_6_ChunkLight chunkLight = new Branch_120_6_ChunkLight(world);
@@ -300,8 +348,11 @@ public final class Branch_120_6_ChunkRegionLoader {
     public static CompoundTag saveChunk(final ServerLevel world, final ChunkAccess chunk, final Branch_120_6_ChunkLight light,
             final List<Runnable> asyncRunnable) {
         final int minSection = world.getMinSection() - 1; // WorldUtil.getMinLightSection();
+        final SWMRNibbleArray[] blockNibbles = chunk.getBlockNibbles();
+        final SWMRNibbleArray[] skyNibbles = chunk.getSkyNibbles();
         final ChunkPos chunkPos = chunk.getPos();
         final CompoundTag nbt = NbtUtils.addCurrentDataVersion(new CompoundTag());
+
         nbt.putInt("xPos", chunkPos.x);
         nbt.putInt("yPos", chunk.getMinSection());
         nbt.putInt("zPos", chunkPos.z);
@@ -333,12 +384,17 @@ public final class Branch_120_6_ChunkRegionLoader {
             final int sectionY = chunk.getSectionIndexFromSectionY(locationY);
             final boolean inSections = sectionY >= 0 && sectionY < chunkSections.length;
             final ThreadedLevelLightEngine lightEngineThreaded = world.getChunkSource().getLightEngine();
-            DataLayer blockNibble;
-            DataLayer skyNibble;
+            Object blockNibble;
+            Object skyNibble;
             try {
-                // 適用於 paper
-                blockNibble = chunk.getBlockNibbles()[locationY - minSection].toVanillaNibble();
-                skyNibble = chunk.getSkyNibbles()[locationY - minSection].toVanillaNibble();
+                /*
+                 * // 適用於 paper blockNibble = chunk.getBlockNibbles()[locationY -
+                 * minSection].toVanillaNibble(); skyNibble = chunk.getSkyNibbles()[locationY -
+                 * minSection].toVanillaNibble();
+                 */
+                blockNibble = blockNibbles[locationY - minSection].getSaveState();
+                skyNibble = skyNibbles[locationY - minSection].getSaveState();
+
             } catch (final NoSuchMethodError noSuchMethodError) {
                 // 適用於 spigot (不推薦)
                 blockNibble = lightEngineThreaded.getLayerListener(LightLayer.BLOCK).getDataLayerData(SectionPos.of(chunkPos, locationY));
@@ -357,26 +413,28 @@ public final class Branch_120_6_ChunkRegionLoader {
                     });
                 }
 
-                if (blockNibble != null) {
-                    if (!blockNibble.isEmpty()) {
+                if (blockNibble != null && blockNibble instanceof final SWMRNibbleArray.SaveState bnib) {
+                    if (bnib.data != null) {
                         if (light != null) {
-                            light.setBlockLight(locationY, blockNibble.getData());
+                            light.setBlockLight(locationY, bnib.data);
                         } else {
-                            sectionNBT.putByteArray("BlockLight", blockNibble.getData());
+                            sectionNBT.putByteArray("BlockLight", bnib.data);
                             lightCorrect = true;
                         }
                     }
+                    sectionNBT.putInt("starlight.blocklight_state", bnib.state);
+
                 }
 
-                if (skyNibble != null) {
-                    if (!skyNibble.isEmpty()) {
-                        if (light != null) {
-                            light.setSkyLight(locationY, skyNibble.getData());
-                        } else {
-                            sectionNBT.putByteArray("SkyLight", skyNibble.getData());
-                            lightCorrect = true;
-                        }
+                if (skyNibble != null && skyNibble instanceof final SWMRNibbleArray.SaveState skinb) {
+                    if (light != null) {
+                        light.setSkyLight(locationY, skinb.data);
+                    } else {
+                        sectionNBT.putByteArray("SkyLight", skinb.data);
+                        lightCorrect = true;
                     }
+                    sectionNBT.putInt("starlight.skylight_state", skinb.state);
+
                 }
 
                 // 增加 inSections 確保 asyncRunnable 不會出資料錯誤
